@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+vendor/
+composer.lock
+
+# Build outputs
+dist/
+build/
+public/build/
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.development
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Database
+*.sqlite
+*.db
+
+# Laravel specific
+/storage/app/
+/storage/framework/
+/storage/logs/
+bootstrap/cache/
+
+# Temporary files
+*.tmp
+*.temp
