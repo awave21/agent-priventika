@@ -8,6 +8,7 @@ import { loadUsersFromSupabase } from '../stores/users'
 const store = useStore()
 
 onMounted(() => {
+  console.log('🔄 [UsersView] Загрузка пользователей при монтировании компонента')
   loadUsersFromSupabase()
 })
 
@@ -28,30 +29,82 @@ const filteredUsers = computed(() => {
 })
 
 const activeCount = computed(() => {
-  return store.users.value.filter(u => u.isActive).length
+  const count = store.users.value.filter(u => u.isActive).length
+  console.log('📊 [UsersView] Активные пользователи:', count)
+  return count
 })
 
 const inactiveCount = computed(() => {
-  return store.users.value.filter(u => !u.isActive).length
+  const count = store.users.value.filter(u => !u.isActive).length
+  console.log('📊 [UsersView] Неактивные пользователи:', count)
+  return count
 })
 
-const allActive = computed(() => {
-  return store.users.value.length > 0 && store.users.value.every(u => u.isActive)
-})
 
 const toggleUser = async (userId: string) => {
-  await store.toggleUserActive(userId)
+  console.log('🔄 [UsersView] Начало переключения пользователя:', userId)
+
+  // Проверяем настройки Supabase
+  console.log('🔍 [UsersView] Проверка настроек Supabase:', {
+    hasUrl: !!store.settings.value.supabaseUrl,
+    hasKey: !!store.settings.value.supabaseAnonKey,
+    url: store.settings.value.supabaseUrl ? '[СКРЫТО]' : 'ОТСУТСТВУЕТ',
+    key: store.settings.value.supabaseAnonKey ? '[СКРЫТО]' : 'ОТСУТСТВУЕТ'
+  })
+
+  // Проверяем пользователя
+  const user = store.users.value.find(u => u.id === userId)
+  console.log('👤 [UsersView] Найден пользователь:', user ? {
+    id: user.id,
+    isActive: user.isActive,
+    name: user.name || user.username || user.phone
+  } : 'ПОЛЬЗОВАТЕЛЬ НЕ НАЙДЕН')
+
+  try {
+    await store.toggleUserActive(userId)
+    console.log('✅ [UsersView] Переключение пользователя завершено успешно')
+  } catch (error) {
+    console.error('❌ [UsersView] Ошибка при переключении пользователя:', error)
+  }
 }
 
-const toggleAll = async () => {
-  if (allActive.value) {
-    if (confirm('Вы уверены, что хотите отключить всех пользователей?')) {
-      await store.deactivateAllUsers()
-    }
-  } else {
-    if (confirm('Вы уверены, что хотите включить всех пользователей?')) {
-      await store.activateAllUsers()
-    }
+const activateAll = async () => {
+  console.log('🔄 [UsersView] Начало массовой активации пользователей')
+
+  // Проверяем настройки Supabase
+  console.log('🔍 [UsersView] Проверка настроек Supabase:', {
+    hasUrl: !!store.settings.value.supabaseUrl,
+    hasKey: !!store.settings.value.supabaseAnonKey,
+    url: store.settings.value.supabaseUrl ? '[СКРЫТО]' : 'ОТСУТСТВУЕТ',
+    key: store.settings.value.supabaseAnonKey ? '[СКРЫТО]' : 'ОТСУТСТВУЕТ'
+  })
+
+  console.log('🔄 [UsersView] Запуск активации всех пользователей')
+  try {
+    await store.activateAllUsers()
+    console.log('✅ [UsersView] Активация всех пользователей завершена успешно')
+  } catch (error) {
+    console.error('❌ [UsersView] Ошибка при активации всех пользователей:', error)
+  }
+}
+
+const deactivateAll = async () => {
+  console.log('🔄 [UsersView] Начало массовой деактивации пользователей')
+
+  // Проверяем настройки Supabase
+  console.log('🔍 [UsersView] Проверка настроек Supabase:', {
+    hasUrl: !!store.settings.value.supabaseUrl,
+    hasKey: !!store.settings.value.supabaseAnonKey,
+    url: store.settings.value.supabaseUrl ? '[СКРЫТО]' : 'ОТСУТСТВУЕТ',
+    key: store.settings.value.supabaseAnonKey ? '[СКРЫТО]' : 'ОТСУТСТВУЕТ'
+  })
+
+  console.log('🔄 [UsersView] Запуск деактивации всех пользователей')
+  try {
+    await store.deactivateAllUsers()
+    console.log('✅ [UsersView] Деактивация всех пользователей завершена успешно')
+  } catch (error) {
+    console.error('❌ [UsersView] Ошибка при деактивации всех пользователей:', error)
   }
 }
 
@@ -72,14 +125,27 @@ const formatDate = (date: Date) => {
           <h1 class="text-3xl font-semibold text-slate-900 mb-2">Пользователи</h1>
           <p class="text-slate-600">Управление пользователями системы</p>
         </div>
-        <button
-          @click="toggleAll"
-          class="flex items-center gap-2 px-4 py-2 text-white rounded-xl transition-colors"
-          :class="allActive ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'"
-        >
-          <component :is="allActive ? PowerOff : Power" :size="20" />
-          <span>{{ allActive ? 'Отключить всех' : 'Включить всех' }}</span>
-        </button>
+        <div class="flex gap-3">
+          <button
+            @click="activateAll"
+            :disabled="inactiveCount === 0"
+            class="flex items-center gap-2 px-4 py-2 text-white rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            :class="inactiveCount === 0 ? 'bg-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'"
+          >
+            <Power :size="20" />
+            <span>Включить всех</span>
+          </button>
+
+          <button
+            @click="deactivateAll"
+            :disabled="activeCount === 0"
+            class="flex items-center gap-2 px-4 py-2 text-white rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            :class="activeCount === 0 ? 'bg-slate-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'"
+          >
+            <PowerOff :size="20" />
+            <span>Отключить всех</span>
+          </button>
+        </div>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">

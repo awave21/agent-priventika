@@ -45,20 +45,35 @@ export const loadUsersFromSupabase = async () => {
 }
 
 export const toggleUserActive = async (userId: string) => {
+  console.log('🔄 [Store] Начало переключения пользователя:', userId)
+
   const user = users.value.find(u => u.id === userId)
-  if (!user) return
+  if (!user) {
+    console.error('❌ [Store] Пользователь не найден:', userId)
+    return
+  }
 
   const previousState = user.isActive
   const newActiveState = !user.isActive
+
+  console.log('🔄 [Store] Переключение пользователя:', {
+    id: userId,
+    previousState,
+    newState: newActiveState,
+    name: user.name || user.username || user.phone
+  })
 
   // Оптимистичное обновление UI
   user.isActive = newActiveState
 
   if (!settings.value.supabaseUrl || !settings.value.supabaseAnonKey) {
+    console.error('❌ [Store] Отсутствуют настройки Supabase')
+    user.isActive = previousState
     return
   }
 
   try {
+    console.log('🌐 [Store] Отправка PATCH запроса на Supabase')
     const { error } = await supabaseFetch(
       settings.value.supabaseUrl,
       settings.value.supabaseAnonKey,
@@ -73,35 +88,50 @@ export const toggleUserActive = async (userId: string) => {
     )
 
     if (error) {
-      console.error('Ошибка обновления статуса пользователя:', error)
+      console.error('❌ [Store] Ошибка обновления статуса пользователя:', error)
       // Откатить изменения при ошибке
       user.isActive = previousState
       return
     }
+
+    console.log('✅ [Store] Статус пользователя успешно обновлен в базе данных')
   } catch (error) {
-    console.error('Ошибка при переключении статуса пользователя:', error)
+    console.error('❌ [Store] Ошибка при переключении статуса пользователя:', error)
     // Откатить изменения при ошибке
     user.isActive = previousState
   }
 }
 
 export const activateAllUsers = async () => {
+  console.log('🔄 [Store] Начало массовой активации пользователей')
+  console.log('📊 [Store] Количество пользователей для активации:', users.value.length)
+
   // Сохраняем предыдущие состояния для отката
   const previousStates = users.value.map(user => ({
     id: user.id,
     isActive: user.isActive
   }))
 
+  console.log('🔄 [Store] Оптимистичное обновление UI - активация всех пользователей')
   // Оптимистичное обновление UI
   users.value.forEach(user => {
     user.isActive = true
   })
 
   if (!settings.value.supabaseUrl || !settings.value.supabaseAnonKey) {
+    console.error('❌ [Store] Отсутствуют настройки Supabase для массовой активации')
+    // Откатить изменения при ошибке
+    previousStates.forEach(prevState => {
+      const user = users.value.find(u => u.id === prevState.id)
+      if (user) {
+        user.isActive = prevState.isActive
+      }
+    })
     return
   }
 
   try {
+    console.log('🌐 [Store] Отправка массового PATCH запроса на активацию')
     const { error } = await supabaseFetch(
       settings.value.supabaseUrl,
       settings.value.supabaseAnonKey,
@@ -116,7 +146,7 @@ export const activateAllUsers = async () => {
     )
 
     if (error) {
-      console.error('Ошибка массового активирования пользователей:', error)
+      console.error('❌ [Store] Ошибка массового активирования пользователей:', error)
       // Откатить изменения при ошибке
       previousStates.forEach(prevState => {
         const user = users.value.find(u => u.id === prevState.id)
@@ -126,8 +156,10 @@ export const activateAllUsers = async () => {
       })
       return
     }
+
+    console.log('✅ [Store] Массовое активирование пользователей успешно завершено')
   } catch (error) {
-    console.error('Ошибка при активации всех пользователей:', error)
+    console.error('❌ [Store] Ошибка при активации всех пользователей:', error)
     // Откатить изменения при ошибке
     previousStates.forEach(prevState => {
       const user = users.value.find(u => u.id === prevState.id)
@@ -139,22 +171,35 @@ export const activateAllUsers = async () => {
 }
 
 export const deactivateAllUsers = async () => {
+  console.log('🔄 [Store] Начало массовой деактивации пользователей')
+  console.log('📊 [Store] Количество пользователей для деактивации:', users.value.length)
+
   // Сохраняем предыдущие состояния для отката
   const previousStates = users.value.map(user => ({
     id: user.id,
     isActive: user.isActive
   }))
 
+  console.log('🔄 [Store] Оптимистичное обновление UI - деактивация всех пользователей')
   // Оптимистичное обновление UI
   users.value.forEach(user => {
     user.isActive = false
   })
 
   if (!settings.value.supabaseUrl || !settings.value.supabaseAnonKey) {
+    console.error('❌ [Store] Отсутствуют настройки Supabase для массовой деактивации')
+    // Откатить изменения при ошибке
+    previousStates.forEach(prevState => {
+      const user = users.value.find(u => u.id === prevState.id)
+      if (user) {
+        user.isActive = prevState.isActive
+      }
+    })
     return
   }
 
   try {
+    console.log('🌐 [Store] Отправка массового PATCH запроса на деактивацию')
     const { error } = await supabaseFetch(
       settings.value.supabaseUrl,
       settings.value.supabaseAnonKey,
@@ -169,7 +214,7 @@ export const deactivateAllUsers = async () => {
     )
 
     if (error) {
-      console.error('Ошибка массового деактивирования пользователей:', error)
+      console.error('❌ [Store] Ошибка массового деактивирования пользователей:', error)
       // Откатить изменения при ошибке
       previousStates.forEach(prevState => {
         const user = users.value.find(u => u.id === prevState.id)
@@ -179,8 +224,10 @@ export const deactivateAllUsers = async () => {
       })
       return
     }
+
+    console.log('✅ [Store] Массовое деактивирование пользователей успешно завершено')
   } catch (error) {
-    console.error('Ошибка при деактивации всех пользователей:', error)
+    console.error('❌ [Store] Ошибка при деактивации всех пользователей:', error)
     // Откатить изменения при ошибке
     previousStates.forEach(prevState => {
       const user = users.value.find(u => u.id === prevState.id)
