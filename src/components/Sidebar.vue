@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
-import { LayoutDashboard, MessageSquare, UserX, Bell, Users, Settings } from 'lucide-vue-next'
+import { LayoutDashboard, MessageSquare, UserX, Bell, Users, Settings, FlaskConical } from 'lucide-vue-next'
 
 const route = useRoute()
 
@@ -11,6 +11,7 @@ defineProps<{
 const navItems = [
   { name: 'Дашборд', path: '/dashboard', icon: LayoutDashboard },
   { name: 'Чаты', path: '/chats', icon: MessageSquare },
+  { name: 'Тест', path: '/test-chats', icon: FlaskConical },
   { name: 'Лист игнор', path: '/ignore', icon: UserX },
   { name: 'Напоминания', path: '/followups', icon: Bell },
   { name: 'Пользователи', path: '/users', icon: Users },

@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useStore } from '../composables/useStore'
 import AppLayout from '../components/AppLayout.vue'
-import { Settings as SettingsIcon, Clock, Database, Save, CheckCircle, Loader, AlertCircle, UserPlus } from 'lucide-vue-next'
+import { Settings as SettingsIcon, Database, Save, CheckCircle, Loader, AlertCircle, UserPlus } from 'lucide-vue-next'
 
 const store = useStore()
 
@@ -21,11 +21,17 @@ onMounted(() => {
 })
 
 const saveSettings = () => {
+  // Сохраняем настройки локально
   store.updateSettings({
     botResponseDelayMinutes: botDelayMinutes.value,
     supabaseUrl: supabaseUrl.value,
     supabaseAnonKey: supabaseAnonKey.value
   })
+
+  // Немедленная синхронизация задержки бота с базой данных
+  if (store.settings.value.supabaseUrl && store.settings.value.supabaseAnonKey) {
+    store.updateBotDelay(botDelayMinutes.value)
+  }
 
   showSuccessMessage.value = true
   setTimeout(() => {
@@ -33,8 +39,43 @@ const saveSettings = () => {
   }, 3000)
 }
 
-const quickSetDelay = (minutes: number) => {
+const quickSetDelay = async (minutes: number) => {
+  console.log(`[SettingsView] Установка задержки через кнопку: ${minutes} минут`)
   botDelayMinutes.value = minutes
+
+  // Немедленная синхронизация с базой данных
+  if (store.settings.value.supabaseUrl && store.settings.value.supabaseAnonKey) {
+    try {
+      await store.updateBotDelay(minutes)
+      console.log(`[SettingsView] ✅ Задержка ${minutes} мин синхронизирована с базой данных`)
+    } catch (error) {
+      console.error(`[SettingsView] ❌ Ошибка синхронизации:`, error)
+    }
+  }
+
+  // Сохраняем локально
+  store.updateSettings({
+    botResponseDelayMinutes: minutes
+  })
+}
+
+const onDelayInputChange = async () => {
+  console.log(`[SettingsView] Изменение через поле ввода: ${botDelayMinutes.value} минут`)
+
+  // Немедленная синхронизация с базой данных
+  if (store.settings.value.supabaseUrl && store.settings.value.supabaseAnonKey) {
+    try {
+      await store.updateBotDelay(botDelayMinutes.value)
+      console.log(`[SettingsView] ✅ Задержка ${botDelayMinutes.value} мин синхронизирована с базой данных`)
+    } catch (error) {
+      console.error(`[SettingsView] ❌ Ошибка синхронизации:`, error)
+    }
+  }
+
+  // Сохраняем локально
+  store.updateSettings({
+    botResponseDelayMinutes: botDelayMinutes.value
+  })
 }
 
 const testSupabaseConnection = async () => {
@@ -141,16 +182,31 @@ const testSupabaseConnection = async () => {
 
           <div class="space-y-4">
             <p class="text-sm text-slate-600">
-              Укажите через сколько минут бот может ответить после сообщения пользователя, если уже
-              общается менеджер
+              Укажите через сколько минут бот может ответить после сообщения пользователя, если уже общается менеджер
             </p>
+
+            <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <div class="text-sm text-blue-900 space-y-2">
+                <div><strong>Статус синхронизации:</strong></div>
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" :class="store.settings.value.supabaseUrl && store.settings.value.supabaseAnonKey ? 'bg-green-500' : 'bg-red-500'"></div>
+                  <span>{{ store.settings.value.supabaseUrl && store.settings.value.supabaseAnonKey ? 'Supabase настроен' : 'Supabase не настроен' }}</span>
+                </div>
+                <div v-if="store.settings.value.supabaseUrl" class="text-xs font-mono break-all">
+                  URL: {{ store.settings.value.supabaseUrl }}
+                </div>
+                <div v-if="!store.settings.value.supabaseUrl || !store.settings.value.supabaseAnonKey" class="mt-2">
+                  <strong class="text-red-700">⚠️ Настройте подключение к Supabase для синхронизации с базой данных</strong>
+                </div>
+              </div>
+            </div>
 
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-3">
                 Задержка (в минутах)
               </label>
 
-              <div class="flex gap-2 mb-4">
+              <div class="flex gap-2 mb-4 flex-wrap">
                 <button
                   type="button"
                   @click="quickSetDelay(3)"
@@ -199,6 +255,30 @@ const testSupabaseConnection = async () => {
                 >
                   15 мин
                 </button>
+                <button
+                  type="button"
+                  @click="quickSetDelay(30)"
+                  class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  :class="
+                    botDelayMinutes === 30
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  "
+                >
+                  30 мин
+                </button>
+                <button
+                  type="button"
+                  @click="quickSetDelay(60)"
+                  class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  :class="
+                    botDelayMinutes === 60
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  "
+                >
+                  60 мин
+                </button>
               </div>
 
               <input
@@ -207,8 +287,25 @@ const testSupabaseConnection = async () => {
                 min="1"
                 max="60"
                 placeholder="Укажите свое значение"
+                @input="onDelayInputChange"
                 class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
               />
+            </div>
+
+            <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <div class="text-sm text-blue-900 space-y-2">
+                <div><strong>Статус синхронизации:</strong></div>
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" :class="store.settings.value.supabaseUrl && store.settings.value.supabaseAnonKey ? 'bg-green-500' : 'bg-red-500'"></div>
+                  <span>{{ store.settings.value.supabaseUrl && store.settings.value.supabaseAnonKey ? 'Supabase настроен' : 'Supabase не настроен' }}</span>
+                </div>
+                <div v-if="store.settings.value.supabaseUrl" class="text-xs font-mono break-all">
+                  URL: {{ store.settings.value.supabaseUrl }}
+                </div>
+                <div v-if="!store.settings.value.supabaseUrl || !store.settings.value.supabaseAnonKey" class="mt-2">
+                  <strong class="text-red-700">⚠️ Настройте подключение к Supabase для синхронизации с базой данных</strong>
+                </div>
+              </div>
             </div>
 
             <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl">

@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStore } from '../composables/useStore'
+import { useRealtimeChats } from '../composables/useRealtimeChats'
 import AppLayout from '../components/AppLayout.vue'
-import { Send, Search } from 'lucide-vue-next'
+import { Send, Search, Wifi, WifiOff } from 'lucide-vue-next'
 
 const route = useRoute()
 const store = useStore()
+const { subscribe, isConnected, error: realtimeError } = useRealtimeChats()
 
 const selectedChatId = ref<string | null>(route.params.id as string || null)
 const newMessage = ref('')
@@ -52,6 +54,11 @@ const formatTime = (date: Date) => {
   return new Date(date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 }
 
+// Инициализация real-time функциональности
+onMounted(() => {
+  subscribe()
+})
+
 </script>
 
 <template>
@@ -59,7 +66,15 @@ const formatTime = (date: Date) => {
     <div class="flex h-full">
       <div class="w-96 bg-white border-r border-slate-200 flex flex-col">
         <div class="p-4 border-b border-slate-200">
-          <h2 class="text-xl font-semibold text-slate-900 mb-4">Чаты</h2>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold text-slate-900">Чаты</h2>
+            <div class="flex items-center gap-2 text-sm">
+              <component :is="isConnected ? Wifi : WifiOff" :size="16" :class="isConnected ? 'text-green-500' : 'text-red-500'" />
+              <span :class="isConnected ? 'text-green-600' : 'text-red-600'">
+                {{ isConnected ? 'Real-time' : 'Офлайн' }}
+              </span>
+            </div>
+          </div>
           <div class="relative">
             <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -68,6 +83,10 @@ const formatTime = (date: Date) => {
               placeholder="Поиск чатов..."
               class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
             />
+          </div>
+          <!-- Показать ошибку real-time если есть -->
+          <div v-if="realtimeError" class="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            {{ realtimeError }}
           </div>
         </div>
 

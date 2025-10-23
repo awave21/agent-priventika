@@ -60,7 +60,7 @@ export const messageStats = computed<MessageStats[]>(() => {
  * Загружает сообщения из таблицы save_messages в Supabase
  * и восстанавливает список чатов на основе загруженных сообщений
  */
-export const loadMessagesFromSupabase = async (chatId?: string) => {
+export const loadMessagesFromSupabase = async (chatId?: string, useTestTable = false) => {
   const url = settings.value.supabaseUrl
   const key = settings.value.supabaseAnonKey
 
@@ -70,52 +70,81 @@ export const loadMessagesFromSupabase = async (chatId?: string) => {
   }
 
   try {
+    // Определяем таблицу для загрузки
+    const tableName = useTestTable ? 'savemessagetest' : 'save_messages'
     const endpoint = chatId
-      ? `save_messages?chat_id=eq.${chatId}&order=created_at.asc`
-      : 'save_messages?order=created_at.asc'
+      ? `${tableName}?chat_id=eq.${chatId}&order=created_at.asc`
+      : `${tableName}?order=created_at.asc`
+
+    console.log(`[loadMessagesFromSupabase] Загрузка из таблицы ${tableName}, endpoint:`, endpoint)
 
     const { data, error } = await supabaseFetch<any[]>(url, key, endpoint)
 
     if (error) {
-      console.error('[loadMessagesFromSupabase] Ошибка загрузки:', error)
+      console.error(`[loadMessagesFromSupabase] Ошибка загрузки из ${tableName}:`, error)
       return
     }
 
+    console.log(`[loadMessagesFromSupabase] Получено данных из ${tableName}:`, {
+      dataLength: data?.length || 0,
+      firstRow: data?.[0] ? {
+        id: data[0].id,
+        chat_id: data[0].chat_id,
+        message_text: data[0].message_text,
+        role_user: data[0].role_user
+      } : null
+    })
+
     if (data && data.length > 0) {
-      console.log(`📥 Загружено ${data.length} сообщений из Supabase`)
+      console.log(`📥 Загружено ${data.length} сообщений из ${tableName}`)
 
       // Преобразуем данные из Supabase в формат Message
-      const loadedMessages: Message[] = data.map((row) => ({
-        id: row.id.toString(),
-        chatId: row.chat_id,
-        text: row.message_text || '',
-        isAgent: row.role_user === 'agent',
-        isUserMessage: row.role_user === 'user',
-        createdAt: new Date(row.created_at),
-        processed: row.processed,
-        channelId: row.channelid,
-        roleUser: row.role_user,
-        messageId: row.message_id,
-        file: row.file,
-        isEcho: row.isecho,
-        status: row.status,
-        answer: row.answer
-      }))
+      const loadedMessages: Message[] = data.map((row, index) => {
+        console.log(`[loadMessagesFromSupabase] Конвертация сообщения ${index + 1}:`, {
+          sourceId: row.id,
+          sourceChatId: row.chat_id,
+          sourceMessageText: row.message_text
+        })
+
+        return {
+          id: row.id.toString(),
+          chatId: row.chat_id,
+          text: row.message_text || '',
+          isAgent: row.role_user === 'agent',
+          isUserMessage: row.role_user === 'user',
+          createdAt: new Date(row.created_at),
+          processed: row.processed,
+          channelId: row.channelid,
+          roleUser: row.role_user,
+          messageId: row.message_id,
+          file: row.file,
+          isEcho: row.isecho,
+          status: row.status,
+          answer: row.answer
+        }
+      })
+
+      console.log(`[loadMessagesFromSupabase] Конвертировано ${loadedMessages.length} сообщений`)
 
       // Заменяем существующие сообщения загруженными
       if (chatId) {
         // Удаляем старые сообщения для этого чата и добавляем новые
+        const oldCount = messages.value.length
         messages.value = [
           ...messages.value.filter(m => m.chatId !== chatId),
           ...loadedMessages
         ]
+        console.log(`[loadMessagesFromSupabase] Обновлено сообщений для чата ${chatId}: ${oldCount} -> ${messages.value.length}`)
       } else {
         // Полная замена всех сообщений
         messages.value = loadedMessages
+        console.log(`[loadMessagesFromSupabase] Полная замена сообщений: ${messages.value.length}`)
 
         // Восстанавливаем список чатов из сообщений
         reconstructChatsFromMessages(loadedMessages)
       }
+    } else {
+      console.log(`[loadMessagesFromSupabase] Нет данных в таблице ${tableName}`)
     }
   } catch (error) {
     console.error('[loadMessagesFromSupabase] Исключение:', error)
@@ -123,14 +152,26 @@ export const loadMessagesFromSupabase = async (chatId?: string) => {
 }
 
 /**
+ * Загружает сообщения только из таблицы savemessagetest для тестовых чатов
+ */
+export const loadTestMessagesFromSupabase = async (chatId?: string) => {
+  return loadMessagesFromSupabase(chatId, true)
+}
+
+/**
  * Восстанавливает список чатов на основе загруженных сообщений
  */
 const reconstructChatsFromMessages = (loadedMessages: Message[]) => {
+  console.log(`[reconstructChatsFromMessages] Начинаем восстановление чатов из ${loadedMessages.length} сообщений`)
+
   // Группируем сообщения по chat_id
   const chatGroups = new Map<string, Message[]>()
 
   for (const msg of loadedMessages) {
-    if (!msg.chatId) continue
+    if (!msg.chatId) {
+      console.warn('[reconstructChatsFromMessages] Найдено сообщение без chatId:', msg)
+      continue
+    }
 
     if (!chatGroups.has(msg.chatId)) {
       chatGroups.set(msg.chatId, [])
@@ -138,8 +179,12 @@ const reconstructChatsFromMessages = (loadedMessages: Message[]) => {
     chatGroups.get(msg.chatId)!.push(msg)
   }
 
+  console.log(`[reconstructChatsFromMessages] Сгруппировано по ${chatGroups.size} чатам`)
+
   // Создаём объекты чатов
   const reconstructedChats = Array.from(chatGroups.entries()).map(([chatId, msgs]) => {
+    console.log(`[reconstructChatsFromMessages] Создание чата ${chatId} из ${msgs.length} сообщений`)
+
     // Сортируем сообщения по времени создания
     const sortedMessages = msgs.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
 
@@ -148,6 +193,13 @@ const reconstructChatsFromMessages = (loadedMessages: Message[]) => {
 
     // Ищем userId из channelId или используем chat_id как fallback
     const userId = firstMessage.channelId || chatId
+
+    console.log(`[reconstructChatsFromMessages] Чат ${chatId}:`, {
+      userId,
+      messagesCount: msgs.length,
+      firstMessageAt: firstMessage.createdAt,
+      lastMessageAt: lastMessage.createdAt
+    })
 
     return {
       id: chatId,
@@ -158,15 +210,16 @@ const reconstructChatsFromMessages = (loadedMessages: Message[]) => {
   })
 
   // Заменяем чаты
+  const oldChatsCount = chats.value.length
   chats.value = reconstructedChats
 
-  console.log(`✅ Восстановлено ${reconstructedChats.length} чатов из сообщений`)
+  console.log(`✅ Восстановлено ${reconstructedChats.length} чатов из сообщений (было ${oldChatsCount})`)
 }
 
 /**
  * Сохраняет сообщение в таблицу save_messages в Supabase
  */
-const saveMessageToSupabase = async (message: Message) => {
+const saveMessageToSupabase = async (message: Message, useTestTable = false) => {
   const url = settings.value.supabaseUrl
   const key = settings.value.supabaseAnonKey
 
@@ -198,10 +251,13 @@ const saveMessageToSupabase = async (message: Message) => {
       answer: message.answer ?? false
     }
 
+    // Определяем таблицу для сохранения
+    const tableName = useTestTable ? 'savemessagetest' : 'save_messages'
+
     const { data, error } = await supabaseFetch<any[]>(
       url,
       key,
-      'save_messages',
+      tableName,
       {
         method: 'POST',
         headers: {
@@ -212,12 +268,12 @@ const saveMessageToSupabase = async (message: Message) => {
     )
 
     if (error) {
-      console.error('[saveMessageToSupabase] Ошибка сохранения:', error)
+      console.error(`[saveMessageToSupabase] Ошибка сохранения в ${tableName}:`, error)
       return null
     }
 
     if (data && data.length > 0) {
-      console.log('✅ Сообщение сохранено в Supabase:', data[0].id)
+      console.log(`✅ Сообщение сохранено в ${tableName}:`, data[0].id)
       return data[0].id
     }
 
@@ -268,7 +324,7 @@ export const updateMessageStatus = async (
   }
 }
 
-export const sendMessage = async (chatId: string, text: string, isUserMessage: boolean) => {
+export const sendMessage = async (chatId: string, text: string, isUserMessage: boolean, useTestTable = false) => {
   const chat = chats.value.find(c => c.id === chatId)
   if (!chat) return
 
@@ -288,10 +344,17 @@ export const sendMessage = async (chatId: string, text: string, isUserMessage: b
   messages.value.push(newMessage)
   chat.lastMessageAt = new Date()
 
-  // Сохраняем в Supabase
-  const savedId = await saveMessageToSupabase(newMessage)
+  // Сохраняем в Supabase (используем тестовую таблицу если указан флаг)
+  const savedId = await saveMessageToSupabase(newMessage, useTestTable)
   if (savedId) {
     // Обновляем ID сообщения на ID из базы данных
     newMessage.id = savedId.toString()
   }
+}
+
+/**
+ * Отправляет сообщение в тестовом режиме (сохраняет в savemessagetest)
+ */
+export const sendTestMessage = async (chatId: string, text: string, isUserMessage: boolean) => {
+  return sendMessage(chatId, text, isUserMessage, true)
 }

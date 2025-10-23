@@ -1,61 +1,69 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useStore } from '../composables/useStore'
-import { Lock } from 'lucide-vue-next'
+import { useAuth } from '../composables/useAuth'
+import { Lock, Mail, Eye, EyeOff } from 'lucide-vue-next'
 
 const router = useRouter()
-const store = useStore()
+const { signIn, isLoading, user } = useAuth()
 
-const password = ref('')
+// Форма входа
+const loginForm = ref({
+  email: '',
+  password: ''
+})
+
 const error = ref('')
-const isLoading = ref(false)
-const appStatus = ref('Загрузка...')
+const success = ref('')
+const showPassword = ref(false)
 
-const VALID_PASSWORD = 'admin123'
+// Следим за изменениями состояния аутентификации
+watch(user, async (newUser) => {
+  if (newUser && !isLoading.value) {
+    // Пользователь аутентифицирован и загрузка завершена
+    await router.push({ name: 'dashboard' })
+  }
+}, { immediate: true })
 
 onMounted(() => {
-  // Проверяем статус приложения
-  try {
-    console.log('🔍 Диагностика приложения:')
-    console.log('- Vue Router:', !!router)
-    console.log('- Store:', !!store)
-    console.log('- Аутентификация:', store.isAuthenticated.value)
-
-    // Проверяем настройки Supabase
-    if (store.settings.value.supabaseUrl && store.settings.value.supabaseAnonKey) {
-      console.log('✅ Supabase настройки найдены')
-    } else {
-      console.log('⚠️ Supabase настройки отсутствуют или пустые')
-    }
-
-    appStatus.value = 'Приложение готово'
-  } catch (err) {
-    console.error('❌ Ошибка инициализации:', err)
-    appStatus.value = 'Ошибка загрузки приложения'
+  // Если пользователь уже загружен (сессия восстановлена мгновенно)
+  if (user.value && !isLoading.value) {
+    router.push({ name: 'dashboard' })
   }
 })
 
-const handleSubmit = async () => {
+const handleLogin = async () => {
   error.value = ''
+  success.value = ''
 
-  if (password.value.length < 6) {
+  if (!loginForm.value.email || !loginForm.value.password) {
+    error.value = 'Заполните все поля'
+    return
+  }
+
+  if (loginForm.value.password.length < 6) {
     error.value = 'Пароль должен содержать минимум 6 символов'
     return
   }
 
-  isLoading.value = true
+  const { error: signInError } = await signIn(loginForm.value.email, loginForm.value.password)
 
-  await new Promise(resolve => setTimeout(resolve, 300))
-
-  if (password.value === VALID_PASSWORD) {
-    store.isAuthenticated.value = true
-    await router.push({ name: 'dashboard' })
+  if (signInError) {
+    error.value = getErrorMessage(signInError.message)
   } else {
-    error.value = 'Неверный пароль'
+    success.value = 'Успешный вход в систему!'
+    await router.push({ name: 'dashboard' })
   }
+}
 
-  isLoading.value = false
+const getErrorMessage = (errorMessage: string) => {
+  if (errorMessage.includes('Invalid login credentials')) {
+    return 'Неверный email или пароль'
+  }
+  if (errorMessage.includes('Email not confirmed')) {
+    return 'Подтвердите ваш email адрес'
+  }
+  return errorMessage
 }
 </script>
 
@@ -72,33 +80,55 @@ const handleSubmit = async () => {
         <h1 class="text-2xl font-semibold text-center text-slate-900 mb-2">
           Вход в систему
         </h1>
-        <p class="text-sm text-slate-600 text-center mb-4">
-          Введите пароль для доступа к панели управления
+        <p class="text-sm text-slate-600 text-center mb-6">
+          Введите данные для доступа к панели управления
         </p>
 
-        <div class="mb-6 p-3 bg-slate-50 rounded-lg text-center">
-          <p class="text-xs text-slate-500">{{ appStatus }}</p>
-          <p class="text-xs text-slate-400 mt-1">
-            URL: {{ store.settings.value.supabaseUrl || 'Не настроен' }}
-          </p>
-        </div>
+        <form @submit.prevent="handleLogin" class="space-y-6">
+          <div>
+            <label for="email" class="block text-sm font-medium text-slate-700 mb-2">
+              Email адрес
+            </label>
+            <div class="relative">
+              <Mail :size="20" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+              <input
+                id="email"
+                v-model="loginForm.email"
+                type="email"
+                placeholder="your@email.com"
+                class="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all"
+                :class="{ 'border-red-500': error }"
+                :disabled="isLoading"
+                required
+              />
+            </div>
+          </div>
 
-        <form @submit.prevent="handleSubmit" class="space-y-6">
           <div>
             <label for="password" class="block text-sm font-medium text-slate-700 mb-2">
               Пароль
             </label>
-            <input
-              id="password"
-              v-model="password"
-              type="password"
-              placeholder="Введите пароль"
-              class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all"
-              :class="{ 'border-red-500': error }"
-            />
-            <p v-if="error" class="mt-2 text-sm text-red-600">
-              {{ error }}
-            </p>
+            <div class="relative">
+              <Lock :size="20" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+              <input
+                id="password"
+                v-model="loginForm.password"
+                :type="showPassword ? 'text' : 'password'"
+                placeholder="Введите пароль"
+                class="w-full pl-10 pr-16 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all"
+                :class="{ 'border-red-500': error }"
+                :disabled="isLoading"
+                required
+              />
+              <button
+                type="button"
+                @click="showPassword = !showPassword"
+                class="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <Eye v-if="showPassword" :size="20" />
+                <EyeOff v-else :size="20" />
+              </button>
+            </div>
           </div>
 
           <button
@@ -110,6 +140,14 @@ const handleSubmit = async () => {
           </button>
         </form>
 
+        <!-- Сообщения об ошибках и успехе -->
+        <div v-if="error" class="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p class="text-sm text-red-600">{{ error }}</p>
+        </div>
+
+        <div v-if="success" class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+          <p class="text-sm text-green-600">{{ success }}</p>
+        </div>
       </div>
     </div>
   </div>

@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useStore } from '../composables/useStore'
+import { useAuth } from '../composables/useAuth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -28,6 +28,18 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/test-chats',
+      name: 'test-chats',
+      component: () => import('../views/TestChatView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/test-chats/:id',
+      name: 'test-chat-detail',
+      component: () => import('../views/TestChatView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/ignore',
       name: 'ignore',
       component: () => import('../views/IgnoreListView.vue'),
@@ -50,16 +62,43 @@ const router = createRouter({
       name: 'settings',
       component: () => import('../views/SettingsView.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/realtime-demo',
+      name: 'realtime-demo',
+      component: () => import('../views/SimpleRealtimeDemoView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/bot-timeout-test',
+      name: 'bot-timeout-test',
+      component: () => import('../components/BotTimeoutTest.vue'),
+      meta: { requiresAuth: true }
     }
   ]
 })
 
-router.beforeEach((to, _from, next) => {
-  const store = useStore()
+router.beforeEach(async (to, _from, next) => {
+  const { user, isLoading } = useAuth()
 
-  if (to.meta.requiresAuth && !store.isAuthenticated.value) {
+  // Ждем пока загрузится состояние аутентификации
+  if (isLoading.value) {
+    // Небольшая задержка для ожидания загрузки состояния аутентификации
+    setTimeout(() => {
+      if (to.meta.requiresAuth && !user.value) {
+        next({ name: 'login' })
+      } else if (to.name === 'login' && user.value) {
+        next({ name: 'dashboard' })
+      } else {
+        next()
+      }
+    }, 100)
+    return
+  }
+
+  if (to.meta.requiresAuth && !user.value) {
     next({ name: 'login' })
-  } else if (to.name === 'login' && store.isAuthenticated.value) {
+  } else if (to.name === 'login' && user.value) {
     next({ name: 'dashboard' })
   } else {
     next()

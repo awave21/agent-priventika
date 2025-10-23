@@ -1,10 +1,16 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useStore } from '../composables/useStore'
+import { useAuth } from '../composables/useAuth'
 import { Bot, User, LogOut, Menu, Power } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
 const store = useStore()
 const router = useRouter()
+const { signOut, user } = useAuth()
+
+const isLoggingOut = ref(false)
+const logoutMessage = ref('')
 
 defineProps<{
   sidebarVisible: boolean
@@ -14,9 +20,31 @@ const emit = defineEmits<{
   toggleSidebar: []
 }>()
 
-const handleLogout = () => {
-  store.isAuthenticated.value = false
-  router.push({ name: 'login' })
+const handleLogout = async () => {
+  isLoggingOut.value = true
+  logoutMessage.value = ''
+
+  try {
+    const { error } = await signOut()
+
+    if (error) {
+      console.error('Ошибка при выходе:', error)
+      logoutMessage.value = 'Ошибка при выходе из системы'
+    } else {
+      logoutMessage.value = 'Вы успешно вышли из системы'
+      console.log('✅ Пользователь вышел из системы:', user.value?.email)
+
+      // Небольшая задержка чтобы показать сообщение
+      setTimeout(() => {
+        router.push({ name: 'login' })
+      }, 1000)
+    }
+  } catch (error) {
+    console.error('Критическая ошибка при выходе:', error)
+    logoutMessage.value = 'Произошла ошибка при выходе'
+  } finally {
+    isLoggingOut.value = false
+  }
 }
 </script>
 
@@ -72,13 +100,24 @@ const handleLogout = () => {
         </span>
       </div>
 
-      <button
-        @click="handleLogout"
-        class="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all"
-      >
-        <LogOut :size="18" />
-        <span>Выйти</span>
-      </button>
+      <div class="relative">
+        <button
+          @click="handleLogout"
+          :disabled="isLoggingOut"
+          class="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <LogOut :size="18" />
+          <span>{{ isLoggingOut ? 'Выход...' : 'Выйти' }}</span>
+        </button>
+
+        <!-- Сообщение об успешном выходе -->
+        <div
+          v-if="logoutMessage"
+          class="absolute top-full right-0 mt-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-600 whitespace-nowrap z-50"
+        >
+          {{ logoutMessage }}
+        </div>
+      </div>
     </div>
   </header>
 </template>

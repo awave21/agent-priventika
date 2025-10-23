@@ -1,6 +1,6 @@
 import { watch } from 'vue'
 import { users, chats, messages, ignoreList, followups, settings, isAuthenticated } from '../stores/state'
-import { toggleAgentMode, toggleAgentActive, toggleSentNewUser, updateSettings } from '../stores/settings'
+import { toggleAgentMode, toggleAgentActive, toggleSentNewUser, updateBotDelay, updateSettings } from '../stores/settings'
 import { loadUsersFromSupabase, toggleUserActive, activateAllUsers, deactivateAllUsers } from '../stores/users'
 import { ignoredUsers, addToIgnoreList, removeFromIgnoreList, loadIgnoreListFromSupabase } from '../stores/ignoreList'
 import { loadFollowupsFromSupabase, addFollowup, removeFollowup, updateFollowup } from '../stores/followups'
@@ -44,6 +44,7 @@ export function useStore() {
     toggleAgentMode,
     toggleAgentActive,
     toggleSentNewUser,
+    updateBotDelay,
     updateSettings,
     loadUsersFromSupabase,
     loadIgnoreListFromSupabase,
