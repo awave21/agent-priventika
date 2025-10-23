@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { useStore } from '../composables/useStore'
 import { useRealtimeChats } from '../composables/useRealtimeChats'
 import AppLayout from '../components/AppLayout.vue'
-import { Send, Search, Wifi, WifiOff } from 'lucide-vue-next'
+import { Send, Search, Wifi, WifiOff, Power, ExternalLink } from 'lucide-vue-next'
 
 const route = useRoute()
 const store = useStore()
@@ -38,6 +38,10 @@ const currentMessages = computed(() => {
   if (!selectedChatId.value) return []
   return store.getChatMessages(selectedChatId.value)
 })
+
+const channelId = computed(() => currentMessages.value[0]?.channelId || '')
+
+const currentUser = computed(() => store.users.value.find(u => u.id === selectedChatId.value))
 
 const selectChat = (chatId: string) => {
   selectedChatId.value = chatId
@@ -117,15 +121,27 @@ onMounted(() => {
       </div>
 
       <div v-if="selectedChat" class="flex-1 flex flex-col bg-slate-50">
-        <div class="h-16 bg-white border-b border-slate-200 flex items-center px-6">
-          <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center mr-3">
-            <span class="text-slate-600 font-medium">
-              {{ getUserDisplayName(selectedChat.user, selectedChat.id)[0].toUpperCase() }}
-            </span>
+        <div class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6">
+          <div class="flex items-center">
+            <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center mr-3">
+              <span class="text-slate-600 font-medium">
+                {{ getUserDisplayName(selectedChat.user, selectedChat.id)[0].toUpperCase() }}
+              </span>
+            </div>
+            <div>
+              <h3 class="font-medium text-slate-900">{{ getUserDisplayName(selectedChat.user, selectedChat.id) }}</h3>
+              <p class="text-xs text-slate-500">Онлайн</p>
+            </div>
           </div>
-          <div>
-            <h3 class="font-medium text-slate-900">{{ getUserDisplayName(selectedChat.user, selectedChat.id) }}</h3>
-            <p class="text-xs text-slate-500">Онлайн</p>
+          <div class="flex items-center gap-2">
+            <button @click="store.toggleUserActive(selectedChatId!)" class="flex items-center gap-1 px-2 py-1 rounded-lg transition-colors" :class="currentUser?.isActive ? 'text-green-600 hover:bg-green-50' : 'text-red-600 hover:bg-red-50'">
+              <Power :size="16" />
+              <span class="text-sm">{{ currentUser?.isActive ? 'Активен' : 'Неактивен' }}</span>
+            </button>
+            <a v-if="channelId" :href="`https://app.wazzup24.com/3944-8479/chat/whatsapp/${selectedChatId!}/${channelId}`" target="_blank" class="flex items-center gap-1 px-2 py-1 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors">
+              <ExternalLink :size="16" />
+              <span class="text-sm">Wazzup</span>
+            </a>
           </div>
         </div>
 

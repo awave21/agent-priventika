@@ -21,7 +21,16 @@ export const activeChats = computed(() => {
 export const getChatMessages = (chatId: string) => {
   return messages.value
     .filter(m => m.chatId === chatId)
-    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .sort((a, b) => {
+      // Сначала сортируем по времени создания
+      const timeDiff = a.createdAt.getTime() - b.createdAt.getTime()
+      if (timeDiff !== 0) return timeDiff
+      
+      // Если время одинаковое, сортируем по ID для гарантированного порядка
+      const aId = parseInt(a.id) || 0
+      const bId = parseInt(b.id) || 0
+      return aId - bId
+    })
 }
 
 export const getChatById = (chatId: string) => {
@@ -185,8 +194,16 @@ const reconstructChatsFromMessages = (loadedMessages: Message[]) => {
   const reconstructedChats = Array.from(chatGroups.entries()).map(([chatId, msgs]) => {
     console.log(`[reconstructChatsFromMessages] Создание чата ${chatId} из ${msgs.length} сообщений`)
 
-    // Сортируем сообщения по времени создания
-    const sortedMessages = msgs.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    // Сортируем сообщения по времени создания с дополнительной сортировкой по ID
+    const sortedMessages = msgs.sort((a, b) => {
+      const timeDiff = a.createdAt.getTime() - b.createdAt.getTime()
+      if (timeDiff !== 0) return timeDiff
+      
+      // Если время одинаковое, сортируем по ID для гарантированного порядка
+      const aId = parseInt(a.id) || 0
+      const bId = parseInt(b.id) || 0
+      return aId - bId
+    })
 
     const firstMessage = sortedMessages[0]
     const lastMessage = sortedMessages[sortedMessages.length - 1]
@@ -328,8 +345,13 @@ export const sendMessage = async (chatId: string, text: string, isUserMessage: b
   const chat = chats.value.find(c => c.id === chatId)
   if (!chat) return
 
+  // Генерируем более уникальный ID с микросекундами для избежания коллизий
+  const now = Date.now()
+  const microTime = performance.now()
+  const uniqueId = `${now}_${Math.floor(microTime * 1000)}`
+
   const newMessage: Message = {
-    id: Date.now().toString(),
+    id: uniqueId,
     chatId,
     text,
     isAgent: settings.value.agentMode,
